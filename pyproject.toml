@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "valmetrics"
+version = "0.1.0"
+description = "Production-style model validation metrics for credit risk and quantitative risk models."
+authors = ["Alexey Mengden"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "valmetrics", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+numpy = "^1.26"
+pandas = "^2.2"
+scipy = "^1.11"
+scikit-learn = "^1.5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+ruff = "^0.6.0"
+pre-commit = "^3.7"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["E", "F", "I"]
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
