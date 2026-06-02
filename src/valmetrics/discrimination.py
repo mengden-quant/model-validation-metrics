@@ -121,3 +121,29 @@ def gini_conservative(
         gini_standard(y_true, y_score, dropna=dropna)
         - conservative_tie_correction(y_true, y_score, dropna=dropna)
     )
+
+
+def ks_statistic(
+    y_true: ArrayLike,
+    y_score: ArrayLike,
+    *,
+    dropna: bool = False,
+) -> float:
+    """Compute the Kolmogorov-Smirnov statistic between score distributions by class."""
+    y, s, n_pos, n_neg = _prepare_inputs(y_true, y_score, dropna=dropna)
+    order = np.argsort(s, kind="mergesort")
+
+    y_sorted = y[order]
+    s_sorted = s[order]
+
+    is_pos = y_sorted == 1
+    is_neg = y_sorted == 0
+
+    cum_pos = np.cumsum(is_pos) / n_pos
+    cum_neg = np.cumsum(is_neg) / n_neg
+
+    _, group_counts = np.unique(s_sorted, return_counts=True)
+    group_last_indices = np.cumsum(group_counts) - 1
+    ks_values = np.abs(cum_pos[group_last_indices] - cum_neg[group_last_indices])
+
+    return float(np.max(ks_values))
