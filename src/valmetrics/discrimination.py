@@ -1,61 +1,7 @@
-from collections.abc import Iterable
-
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-ArrayLike = np.ndarray | Iterable[float]
-
-
-def _prepare_inputs(
-    y_true: ArrayLike,
-    y_score: ArrayLike,
-    *,
-    dropna: bool,
-) -> tuple[np.ndarray, np.ndarray, int, int]:
-    """Validate and sanitize inputs; returns (y:int, s:float, n_pos, n_neg)."""
-    y = np.asarray(y_true)
-    s = np.asarray(y_score)
-
-    if y.ndim != 1 or s.ndim != 1:
-        raise ValueError(f"y_true and y_score must be 1D, got shapes {y.shape} and {s.shape}")
-    if y.shape[0] != s.shape[0]:
-        raise ValueError("y_true and y_score must have the same length")
-
-    # Convert inputs to float for finite checks and numeric validation
-    try:
-        y_float = y.astype(float, copy=False)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("y_true must be numeric or bool") from exc
-    try:
-        s = s.astype(float, copy=False)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("y_score must be numeric") from exc
-
-    if dropna:
-        m = np.isfinite(s) & np.isfinite(y_float)
-        s = s[m]
-        y_float = y_float[m]
-
-    # y must be {0,1} (allow bool/int; reject non-integer floats)
-    if not np.all(np.isfinite(y_float)):
-        raise ValueError("y_true contains non-finite values")
-    if not np.all(np.isfinite(s)):
-        raise ValueError("y_score contains non-finite values")
-    if not np.all(np.equal(y_float, np.floor(y_float))):
-        raise ValueError("y_true must be integer/bool (0/1), got non-integers")
-
-    y = y_float.astype(int, copy=False)
-
-    unique_values = np.unique(y)
-    if not np.all(np.isin(unique_values, [0, 1])):
-        raise ValueError(f"y_true must be binary in {{0,1}}, got unique={unique_values.tolist()}")
-
-    n_pos = int((y == 1).sum())
-    n_neg = int((y == 0).sum())
-    if n_pos == 0 or n_neg == 0:
-        raise ValueError("Need at least one positive (1) and one negative (0) sample")
-
-    return y, s, n_pos, n_neg
+from valmetrics.utils import ArrayLike, binary_class_counts, prepare_binary_inputs
 
 
 def _gini_from_auc(auc: float) -> float:
@@ -65,7 +11,7 @@ def _gini_from_auc(auc: float) -> float:
 
 def roc_auc(y_true: ArrayLike, y_score: ArrayLike, *, dropna: bool = False) -> float:
     """Standard ROC AUC (ties treated neutrally as 0.5 in sklearn)."""
-    y, s, _, _ = _prepare_inputs(y_true, y_score, dropna=dropna)
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
     return float(roc_auc_score(y, s))
 
 
@@ -83,8 +29,8 @@ def conservative_tie_correction(
 
     Depends only on tie structure (permutation-invariant).
     """
-    y, s, n_pos, n_neg = _prepare_inputs(y_true, y_score, dropna=dropna)
-
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    n_pos, n_neg = binary_class_counts(y)
     # group by identical scores
     _, inv = np.unique(s, return_inverse=True)
     pos_j = np.bincount(inv, weights=y.astype(float))
@@ -130,7 +76,8 @@ def ks_statistic(
     dropna: bool = False,
 ) -> float:
     """Compute the Kolmogorov-Smirnov statistic between score distributions by class."""
-    y, s, n_pos, n_neg = _prepare_inputs(y_true, y_score, dropna=dropna)
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    n_pos, n_neg = binary_class_counts(y)
     order = np.argsort(s, kind="mergesort")
 
     y_sorted = y[order]
