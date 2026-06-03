@@ -3,6 +3,7 @@ from collections.abc import Iterable
 import numpy as np
 
 ArrayLike = np.ndarray | Iterable[int] | Iterable[float] | Iterable[bool]
+GroupLike = np.ndarray | Iterable[int] | Iterable[float] | Iterable[bool] | Iterable[str]
 
 
 def as_1d_numeric_array(values: ArrayLike, *, name: str) -> np.ndarray:
