@@ -10,28 +10,28 @@ from valmetrics.discrimination import (
 )
 
 
-def test_perfect_ranking():
+def test_gini_perfect_ranking():
     df = pd.DataFrame(
         {"PD": [0.23, 0.17, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [1, 1, 1, 1, 0, 0, 0]}
     )
     assert gini_standard(df["target"], df["PD"]) == pytest.approx(1.0)
 
 
-def test_reverse_ranking():
+def test_gini_reverse_ranking():
     df = pd.DataFrame(
         {"PD": [0.23, 0.17, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 0, 0, 0, 1, 1, 1]}
     )
     assert gini_standard(df["target"], df["PD"]) == pytest.approx(-1.0)
 
 
-def test_no_ties_correction():
+def test_no_gini_ties_correction():
     df = pd.DataFrame(
         {"PD": [0.23, 0.17, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 0, 0, 0, 1, 1, 1]}
     )
     assert conservative_tie_correction(df["target"], df["PD"]) == 0.0
 
 
-def test_mixed_ties_correction():
+def test_gini_mixed_ties_correction():
     df = pd.DataFrame(
         {"PD": [0.23, 0.23, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 1, 0, 0, 1, 1, 1]}
     )
@@ -47,7 +47,7 @@ def test_conservative_gini_is_less_than_standard_with_mixed_ties():
     assert conservative < standard
 
 
-def test_nan_score_raises():
+def test_gini_nan_score_raises():
     df = pd.DataFrame(
         {"PD": [np.nan, 0.23, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 1, 0, 0, 1, 1, 1]}
     )
@@ -90,3 +90,11 @@ def test_ks_constant_score():
         {"PD": [0.07, 0.07, 0.07, 0.07, 0.07, 0.07, 0.07], "target": [0, 0, 0, 0, 1, 1, 1]}
     )
     assert ks_statistic(df["target"], df["PD"]) == pytest.approx(0.0)
+
+
+def test_ks_nan_score_raises():
+    df = pd.DataFrame(
+        {"PD": [np.nan, 0.23, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 1, 0, 0, 1, 1, 1]}
+    )
+    with pytest.raises(ValueError, match="y_score contains non-finite values"):
+        gini_standard(df["target"], df["PD"])
