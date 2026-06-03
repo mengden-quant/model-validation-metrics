@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import numpy as np
 
 from valmetrics.utils import GroupLike
@@ -47,3 +49,35 @@ def herfindahl_hirschman(
 
     normalized_hhi = (hhi - 1.0 / effective_n_groups) / (1.0 - 1.0 / effective_n_groups)
     return float(normalized_hhi)
+
+
+@dataclass(frozen=True)
+class HCIResult:
+    groups: tuple[int | float | str]
+    value: float
+
+
+def hci(
+    groups: GroupLike,
+    *,
+    dropna: bool = False,
+) -> HCIResult:
+    """Compute the Highest Concentration Index and return all groups with maximum share."""
+    group_array = np.asarray(groups)
+
+    if group_array.ndim != 1:
+        raise ValueError(f"groups must be 1D, got shape {group_array.shape}")
+
+    if dropna:
+        group_array = group_array[~_is_missing_group(group_array)]
+
+    if group_array.size == 0:
+        raise ValueError("groups must contain at least one observation")
+
+    labels, counts = np.unique(group_array, return_counts=True)
+
+    max_count = np.max(counts)
+    max_labels = labels[counts == max_count]
+    max_share = max_count / group_array.size
+
+    return HCIResult(groups=tuple(max_labels), value=float(max_share))
