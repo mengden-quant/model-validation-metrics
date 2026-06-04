@@ -20,6 +20,20 @@ def as_1d_numeric_array(values: ArrayLike, *, name: str) -> np.ndarray:
     return array
 
 
+def as_1d_float_array_allow_nan(values: ArrayLike, *, name: str) -> np.ndarray:
+    """Convert values to a 1D float array while allowing NaN values."""
+    array = np.asarray(values)
+    if array.ndim != 1:
+        raise ValueError(f"{name} must be 1D, got shape {array.shape}")
+    try:
+        array = array.astype(float, copy=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be numeric") from exc
+    if np.any(np.isinf(array)):
+        raise ValueError(f"{name} contains infinite values")
+    return array
+
+
 def prepare_binary_target(y_true: ArrayLike, *, name: str = "y_true") -> np.ndarray:
     """Validate and convert binary target to an integer NumPy array."""
     y = as_1d_numeric_array(y_true, name=name)
