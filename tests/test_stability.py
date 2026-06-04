@@ -1,0 +1,84 @@
+import numpy as np
+import pytest
+
+from valmetrics.stability import psi_continuous
+
+
+def test_psi_identical_distributions_is_zero():
+    expected = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
+    actual = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
+    assert psi_continuous(expected, actual, bins=3) == pytest.approx(0.0)
+
+
+def test_psi_shifted_distribution_is_positive():
+    expected = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
+    actual = [0.04, 0.05, 0.06, 0.07, 0.08, 0.09]
+    assert psi_continuous(expected, actual, bins=3) > 0.0
+
+
+def test_psi_handles_zero_count_bins_with_epsilon():
+    expected = [0.01, 0.02, 0.03, 0.80, 0.90, 1.00]
+    actual = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
+    result = psi_continuous(expected, actual, bins=3, epsilon=1e-6)
+    assert np.isfinite(result)
+    assert result > 0.0
+
+
+def test_psi_rejects_missing_by_default():
+    expected = [0.01, 0.02, np.nan, 0.04]
+    actual = [0.01, 0.02, 0.03, 0.04]
+    with pytest.raises(ValueError, match="missing values"):
+        psi_continuous(expected, actual, bins=2)
+
+
+def test_psi_can_drop_missing_values():
+    expected = [0.01, 0.02, np.nan, 0.04]
+    actual = [0.01, 0.02, 0.03, 0.04]
+    result = psi_continuous(expected, actual, bins=2, missing="drop")
+    assert np.isfinite(result)
+
+
+def test_psi_can_treat_missing_as_separate_bin():
+    expected = [0.01, 0.02, np.nan, 0.04]
+    actual = [0.01, np.nan, 0.03, 0.04]
+    result = psi_continuous(expected, actual, bins=2, missing="separate")
+    assert np.isfinite(result)
+
+
+def test_psi_rejects_infinite_values():
+    expected = [0.01, 0.02, np.inf, 0.04]
+    actual = [0.01, 0.02, 0.03, 0.04]
+    with pytest.raises(ValueError, match="expected contains infinite values"):
+        psi_continuous(expected, actual, bins=2)
+
+
+def test_psi_rejects_empty_expected():
+    with pytest.raises(ValueError, match="expected must contain at least one observation"):
+        psi_continuous([], [0.01, 0.02], bins=2)
+
+
+def test_psi_rejects_empty_actual():
+    with pytest.raises(ValueError, match="actual must contain at least one observation"):
+        psi_continuous([0.01, 0.02], [], bins=2)
+
+
+def test_psi_rejects_too_few_bins():
+    with pytest.raises(ValueError, match="bins must be at least 2"):
+        psi_continuous([0.01, 0.02], [0.01, 0.02], bins=1)
+
+
+def test_psi_rejects_invalid_epsilon():
+    with pytest.raises(ValueError, match="epsilon must be between 0 and 1"):
+        psi_continuous([0.01, 0.02], [0.01, 0.02], epsilon=0.0)
+
+
+def test_psi_rejects_invalid_missing_policy():
+    with pytest.raises(ValueError, match="missing must be one of"):
+        psi_continuous([0.01, 0.02], [0.01, 0.02], missing="bad_policy")
+
+
+def test_psi_rejects_constant_expected_values():
+    expected = [0.05, 0.05, 0.05, 0.05]
+    actual = [0.05, 0.05, 0.06, 0.07]
+    with pytest.raises(ValueError, match="at least two distinct values"):
+        psi_continuous(expected, actual, bins=3)
