@@ -1,7 +1,12 @@
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from valmetrics.utils import ArrayLike, binary_class_counts, prepare_binary_inputs
+from valmetrics.utils import (
+    ArrayLike,
+    binary_class_counts,
+    check_contains_both_binary_classes,
+    prepare_binary_inputs,
+)
 
 
 def _gini_from_auc(auc: float) -> float:
@@ -12,6 +17,7 @@ def _gini_from_auc(auc: float) -> float:
 def roc_auc(y_true: ArrayLike, y_score: ArrayLike, *, dropna: bool = False) -> float:
     """Standard ROC AUC (ties treated neutrally as 0.5 in sklearn)."""
     y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    check_contains_both_binary_classes(y)
     return float(roc_auc_score(y, s))
 
 
@@ -30,6 +36,7 @@ def conservative_tie_correction(
     Depends only on tie structure (permutation-invariant).
     """
     y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    check_contains_both_binary_classes(y)
     n_pos, n_neg = binary_class_counts(y)
     # group by identical scores
     _, inv = np.unique(s, return_inverse=True)
@@ -77,6 +84,7 @@ def ks_statistic(
 ) -> float:
     """Compute the Kolmogorov-Smirnov statistic between score distributions by class."""
     y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    check_contains_both_binary_classes(y)
     n_pos, n_neg = binary_class_counts(y)
     order = np.argsort(s, kind="mergesort")
 

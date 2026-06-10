@@ -39,7 +39,7 @@ def test_hosmer_lemeshow_rejects_probabilities_outside_unit_interval():
 def test_hosmer_lemeshow_rejects_non_finite_probabilities():
     y = [0, 1, 0, 1]
     p = [0.1, np.nan, 0.3, 0.4]
-    with pytest.raises(ValueError, match="y_prob contains non-finite values"):
+    with pytest.raises(ValueError, match="y_prob contains NaN values"):
         hosmer_lemeshow(y, p, n_groups=2)
 
 
@@ -70,13 +70,13 @@ def test_binomial_test_computes_expected_fields_per_bin():
     result = binomial_test(y_true, y_prob, n_groups=2)
     first_bin = result.bins[0]
     second_bin = result.bins[1]
-    assert first_bin.bin_id == 0
+    assert first_bin.group == 0
     assert first_bin.n_observations == 2
     assert first_bin.observed_defaults == 1
     assert first_bin.expected_defaults == pytest.approx(0.30)
     assert first_bin.average_pd == pytest.approx(0.15)
     assert first_bin.observed_dr == pytest.approx(0.50)
-    assert second_bin.bin_id == 1
+    assert second_bin.group == 1
     assert second_bin.n_observations == 2
     assert second_bin.observed_defaults == 1
     assert second_bin.expected_defaults == pytest.approx(0.70)

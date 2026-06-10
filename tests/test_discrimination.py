@@ -51,7 +51,7 @@ def test_gini_nan_score_raises():
     df = pd.DataFrame(
         {"PD": [np.nan, 0.23, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 1, 0, 0, 1, 1, 1]}
     )
-    with pytest.raises(ValueError, match="y_score contains non-finite values"):
+    with pytest.raises(ValueError, match="y_score contains NaN values"):
         gini_standard(df["target"], df["PD"])
 
 
@@ -96,5 +96,5 @@ def test_ks_nan_score_raises():
     df = pd.DataFrame(
         {"PD": [np.nan, 0.23, 0.13, 0.11, 0.07, 0.04, 0.01], "target": [0, 1, 0, 0, 1, 1, 1]}
     )
-    with pytest.raises(ValueError, match="y_score contains non-finite values"):
+    with pytest.raises(ValueError, match="y_score contains NaN values"):
         ks_statistic(df["target"], df["PD"])

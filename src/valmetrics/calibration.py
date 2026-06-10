@@ -7,6 +7,7 @@ from scipy.stats import binom, binomtest, chi2
 from valmetrics.utils import ArrayLike, prepare_binary_inputs, validate_probabilities
 
 Alternative = Literal["two-sided", "greater", "less"]
+GroupLabel = int | float | str
 
 
 @dataclass(frozen=True)
@@ -65,14 +66,14 @@ def hosmer_lemeshow(
 
 @dataclass(frozen=True)
 class BinomialBinResult:
-    bin_id: int
+    group: GroupLabel
     n_observations: int
     observed_defaults: int
     expected_defaults: float
     observed_dr: float
     average_pd: float
-    lower_default_bound: float
-    upper_default_bound: float
+    lower_default_bound: int
+    upper_default_bound: int
     lower_default_rate: float
     upper_default_rate: float
     p_value: float
@@ -89,7 +90,7 @@ class BinomialTestResult:
 def _compute_exact_binomial_bin_result(
     y_g: np.ndarray,
     p_g: np.ndarray,
-    bin_id: int,
+    group: int | float | str,
     confidence_level: float = 0.95,
     alternative: Alternative = "two-sided",
 ) -> BinomialBinResult:
@@ -117,7 +118,7 @@ def _compute_exact_binomial_bin_result(
         upper_default_bound = n_observations
 
     return BinomialBinResult(
-        bin_id=bin_id,
+        group=group,
         n_observations=n_observations,
         observed_defaults=observed_defaults,
         expected_defaults=expected_defaults,
@@ -166,7 +167,7 @@ def binomial_test(
             _compute_exact_binomial_bin_result(
                 y_g=y_g,
                 p_g=p_g,
-                bin_id=bin_id,
+                group=bin_id,
                 confidence_level=confidence_level,
                 alternative=alternative,
             )

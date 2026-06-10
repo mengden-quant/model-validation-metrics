@@ -2,7 +2,7 @@ from typing import Literal
 
 import numpy as np
 
-from valmetrics.utils import ArrayLike, as_1d_float_array_allow_nan
+from valmetrics.utils import ArrayLike, as_1d_float_array
 
 MissingPolicy = Literal["raise", "drop", "separate"]
 
@@ -31,8 +31,8 @@ def psi_continuous(
     if missing not in {"raise", "drop", "separate"}:
         raise ValueError("missing must be one of: raise, drop, separate")
 
-    expected_array = as_1d_float_array_allow_nan(expected, name="expected")
-    actual_array = as_1d_float_array_allow_nan(actual, name="actual")
+    expected_array = as_1d_float_array(expected, name="expected")
+    actual_array = as_1d_float_array(actual, name="actual")
 
     if expected_array.size == 0:
         raise ValueError("expected must contain at least one observation")
