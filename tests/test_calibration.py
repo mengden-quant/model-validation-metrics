@@ -7,6 +7,7 @@ from valmetrics.calibration import (
     BinomialTestResult,
     binomial_test,
     grouped_binomial_test,
+    grouped_hosmer_lemeshow,
     hosmer_lemeshow,
 )
 
@@ -31,27 +32,84 @@ def test_hosmer_lemeshow_bad_calibration_has_larger_statistic():
 
 
 def test_hosmer_lemeshow_rejects_probabilities_outside_unit_interval():
-    y = [0, 1, 0, 1]
-    p = [0.1, 0.2, 1.2, 0.4]
+    y = [0, 1, 0, 1, 0, 1]
+    p = [0.1, 0.2, 1.2, 0.4, 0.5, 0.6]
     with pytest.raises(ValueError, match=re.escape("y_prob must be in [0, 1]")):
-        hosmer_lemeshow(y, p, n_groups=2)
+        hosmer_lemeshow(y, p, n_groups=3)
 
 
 def test_hosmer_lemeshow_rejects_non_finite_probabilities():
-    y = [0, 1, 0, 1]
-    p = [0.1, np.nan, 0.3, 0.4]
+    y = [0, 1, 0, 1, 0, 1]
+    p = [0.1, np.nan, 0.3, 0.4, 0.5, 0.6]
     with pytest.raises(ValueError, match="y_prob contains NaN values"):
-        hosmer_lemeshow(y, p, n_groups=2)
+        hosmer_lemeshow(y, p, n_groups=3)
 
 
-def test_hosmer_lemeshow_rejects_too_few_groups():
-    with pytest.raises(ValueError, match="n_groups must be at least 2"):
-        hosmer_lemeshow([0, 1, 0, 1], [0.1, 0.2, 0.3, 0.4], n_groups=1)
+@pytest.mark.parametrize("n_groups", [1, 2])
+def test_hosmer_lemeshow_rejects_too_few_groups(n_groups):
+    with pytest.raises(ValueError, match="Hosmer-Lemeshow test requires at least 3"):
+        hosmer_lemeshow([0, 1, 0, 1, 0, 1], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6], n_groups=n_groups)
+
+
+def test_hosmer_lemeshow_rejects_non_positive_number_of_groups():
+    with pytest.raises(ValueError, match="n_groups must be positive"):
+        hosmer_lemeshow(
+            [0, 1, 0, 1],
+            [0.1, 0.2, 0.3, 0.4],
+            n_groups=0,
+        )
 
 
 def test_hosmer_lemeshow_rejects_too_many_groups():
     with pytest.raises(ValueError, match="n_groups must not exceed number of observations"):
         hosmer_lemeshow([0, 1, 0, 1], [0.1, 0.2, 0.3, 0.4], n_groups=5)
+
+
+def test_grouped_hosmer_lemeshow_accepts_string_groups():
+    result = grouped_hosmer_lemeshow(
+        y_true=[0, 1, 0, 1, 0, 1],
+        y_prob=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        groups=["A", "A", "B", "B", "C", "C"],
+    )
+    assert result.n_groups == 3
+    assert result.degrees_of_freedom == 1
+    assert result.statistic >= 0.0
+    assert 0.0 <= result.p_value <= 1.0
+
+
+def test_grouped_hosmer_lemeshow_rejects_fewer_than_three_groups():
+    with pytest.raises(
+        ValueError,
+        match="Hosmer-Lemeshow test requires at least 3 groups",
+    ):
+        grouped_hosmer_lemeshow(
+            y_true=[0, 1, 0, 1],
+            y_prob=[0.1, 0.2, 0.3, 0.4],
+            groups=["A", "A", "B", "B"],
+        )
+
+
+def test_grouped_hosmer_lemeshow_dropna_preserves_alignment():
+    result = grouped_hosmer_lemeshow(
+        y_true=[0, np.nan, 1, 0, 1, 0, 1],
+        y_prob=[0.1, 0.2, 0.3, np.nan, 0.5, 0.6, 0.7],
+        groups=["A", "A", "B", "B", "C", "C", "D"],
+        dropna=True,
+    )
+    assert result.n_groups == 4
+    assert result.degrees_of_freedom == 2
+
+
+def test_grouped_hosmer_lemeshow_matches_automatic_groups():
+    y = [0, 1, 0, 1, 0, 1, 0, 1]
+    p = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    groups = ["A", "A", "B", "B", "C", "C", "D", "D"]
+    automatic = hosmer_lemeshow(y, p, n_groups=4)
+    grouped = grouped_hosmer_lemeshow(y, p, groups)
+    assert grouped.statistic == pytest.approx(automatic.statistic)
+    assert grouped.p_value == pytest.approx(automatic.p_value)
+    assert grouped.degrees_of_freedom == automatic.degrees_of_freedom
+    assert grouped.n_groups == automatic.n_groups
 
 
 def test_binomial_test_returns_result_with_one_entry_per_group():

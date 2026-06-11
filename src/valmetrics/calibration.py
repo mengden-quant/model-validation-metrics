@@ -6,6 +6,7 @@ from scipy.stats import binom, binomtest, chi2
 
 from valmetrics.utils import (
     ArrayLike,
+    GroupLike,
     prepare_binary_inputs,
     prepare_binary_inputs_and_groups,
     validate_probabilities,
@@ -23,49 +24,98 @@ class HosmerLemeshowResult:
     n_groups: int
 
 
+def _compute_hosmer_lemeshow(
+    y: np.ndarray,
+    p: np.ndarray,
+    group_labels: np.ndarray,
+) -> HosmerLemeshowResult:
+    """Compute the Hosmer-Lemeshow statistic for predefined groups."""
+    if not (y.size == p.size == group_labels.size):
+        raise ValueError("y, p, and group_labels must have the same length")
+
+    unique_groups = tuple(dict.fromkeys(group_labels.tolist()))
+
+    if len(unique_groups) < 3:
+        raise ValueError("Hosmer-Lemeshow test requires at least 3 groups")
+
+    statistic = 0.0
+
+    for group in unique_groups:
+        mask = group_labels == group
+        y_g = y[mask]
+        p_g = p[mask]
+        n_g = y_g.size
+        observed_bad = int(np.sum(y_g))
+        expected_bad = float(np.sum(p_g))
+        observed_good = n_g - observed_bad
+        expected_good = n_g - expected_bad
+        if expected_bad <= 0.0 or expected_good <= 0.0:
+            raise ValueError(
+                "Each group must have expected defaults and non-defaults "
+                "strictly greater than zero"
+            )
+        statistic += (observed_bad - expected_bad) ** 2 / expected_bad
+        statistic += (observed_good - expected_good) ** 2 / expected_good
+    n_groups = len(unique_groups)
+    degrees_of_freedom = n_groups - 2
+    p_value = 1.0 - chi2.cdf(statistic, degrees_of_freedom)
+    return HosmerLemeshowResult(
+        statistic=float(statistic),
+        p_value=float(p_value),
+        degrees_of_freedom=int(degrees_of_freedom),
+        n_groups=int(n_groups),
+    )
+
+
 def hosmer_lemeshow(
-    y_true,
-    y_prob,
+    y_true: ArrayLike,
+    y_prob: ArrayLike,
     *,
     n_groups: int = 10,
     dropna: bool = False,
 ) -> HosmerLemeshowResult:
+    """Compute the Hosmer-Lemeshow test using approximately equal-sized groups."""
+    if n_groups < 1:
+        raise ValueError("n_groups must be positive")
     y, p = prepare_binary_inputs(y_true, y_prob, values_name="y_prob", dropna=dropna)
-    if np.any(p < 0) or np.any(p > 1):
-        raise ValueError("y_prob must be in [0, 1]")
-    if n_groups < 2:
-        raise ValueError("n_groups must be at least 2")
+    validate_probabilities(p, name="y_prob")
+
     if y.size < n_groups:
         raise ValueError("n_groups must not exceed number of observations")
 
     order = np.argsort(p, kind="mergesort")
     y_sorted = y[order]
     p_sorted = p[order]
-    groups = np.array_split(np.arange(y.size), n_groups)
-    statistic = 0.0
-    used_groups = 0
-    for group in groups:
-        y_g = y_sorted[group]
-        p_g = p_sorted[group]
-        n_g = y_g.size
-        observed_bad = np.sum(y_g)
-        expected_bad = np.sum(p_g)
-        observed_good = n_g - observed_bad
-        expected_good = n_g - expected_bad
-        if expected_bad <= 0.0 or expected_good <= 0.0:
-            continue
-        statistic += (observed_bad - expected_bad) ** 2 / expected_bad
-        statistic += (observed_good - expected_good) ** 2 / expected_good
-        used_groups += 1
-    degrees_of_freedom = used_groups - 2
-    if degrees_of_freedom <= 0:
-        raise ValueError("Not enough valid groups to compute Hosmer-Lemeshow statistic")
-    p_value = 1.0 - chi2.cdf(statistic, degrees_of_freedom)
-    return HosmerLemeshowResult(
-        statistic=float(statistic),
-        p_value=float(p_value),
-        degrees_of_freedom=int(degrees_of_freedom),
-        n_groups=int(used_groups),
+
+    group_indices = np.array_split(np.arange(y.size), n_groups)
+    group_labels = np.empty(y.size, dtype=int)
+    for group_id, indices in enumerate(group_indices):
+        group_labels[indices] = group_id
+
+    return _compute_hosmer_lemeshow(y_sorted, p_sorted, group_labels)
+
+
+def grouped_hosmer_lemeshow(
+    y_true: ArrayLike,
+    y_prob: ArrayLike,
+    groups: GroupLike,
+    *,
+    dropna: bool = False,
+) -> HosmerLemeshowResult:
+    """Compute the Hosmer-Lemeshow test using predefined groups."""
+    y, p, group_labels = prepare_binary_inputs_and_groups(
+        y_true,
+        y_prob,
+        groups,
+        values_name="y_prob",
+        groups_name="groups",
+        dropna=dropna,
+    )
+    validate_probabilities(p, name="y_prob")
+    return _compute_hosmer_lemeshow(
+        y,
+        p,
+        group_labels,
     )
 
 
