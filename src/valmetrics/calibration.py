@@ -4,7 +4,12 @@ from typing import Literal
 import numpy as np
 from scipy.stats import binom, binomtest, chi2
 
-from valmetrics.utils import ArrayLike, prepare_binary_inputs, validate_probabilities
+from valmetrics.utils import (
+    ArrayLike,
+    prepare_binary_inputs,
+    prepare_binary_inputs_and_groups,
+    validate_probabilities,
+)
 
 Alternative = Literal["two-sided", "greater", "less"]
 GroupLabel = int | float | str
@@ -168,6 +173,47 @@ def binomial_test(
                 y_g=y_g,
                 p_g=p_g,
                 group=bin_id,
+                confidence_level=confidence_level,
+                alternative=alternative,
+            )
+        )
+    return BinomialTestResult(
+        bins=tuple(bin_results),
+        confidence_level=confidence_level,
+        alternative=alternative,
+        method="binomial_exact",
+    )
+
+
+def grouped_binomial_test(
+    y_true: ArrayLike,
+    y_prob: ArrayLike,
+    groups: ArrayLike,
+    *,
+    confidence_level: float = 0.95,
+    alternative: Alternative = "two-sided",
+    dropna: bool = False,
+) -> BinomialTestResult:
+    if alternative not in {"two-sided", "greater", "less"}:
+        raise ValueError("alternative must be 'two-sided', 'greater' or 'less'")
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be between 0 and 1")
+
+    y, p, g = prepare_binary_inputs_and_groups(
+        y_true, y_prob, groups, values_name="y_prob", groups_name="groups", dropna=dropna
+    )
+    validate_probabilities(p, name="y_prob")
+    groups_unique = list(dict.fromkeys(g))
+
+    bin_results: list[BinomialBinResult] = []
+    for group in groups_unique:
+        y_g = y[g == group]
+        p_g = p[g == group]
+        bin_results.append(
+            _compute_exact_binomial_bin_result(
+                y_g=y_g,
+                p_g=p_g,
+                group=group,
                 confidence_level=confidence_level,
                 alternative=alternative,
             )

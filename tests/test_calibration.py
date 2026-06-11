@@ -6,6 +6,7 @@ import pytest
 from valmetrics.calibration import (
     BinomialTestResult,
     binomial_test,
+    grouped_binomial_test,
     hosmer_lemeshow,
 )
 
@@ -208,3 +209,78 @@ def test_binomial_test_rejects_missing_values_by_default():
     y_prob = [0.10, np.nan, 0.30, 0.40]
     with pytest.raises(ValueError):
         binomial_test(y_true, y_prob, n_groups=2)
+
+
+def test_grouped_binomial_returns_one_result_per_group():
+    y_true = [0, 1, 0, 1, 1, 0]
+    y_prob = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60]
+    groups = ["A", "A", "B", "B", "C", "C"]
+    result = grouped_binomial_test(y_true, y_prob, groups)
+    assert len(result.bins) == 3
+    assert tuple(bin_result.group for bin_result in result.bins) == ("A", "B", "C")
+
+
+def test_grouped_binomial_computes_group_level_values():
+    y_true = [0, 1, 0, 1]
+    y_prob = [0.10, 0.20, 0.30, 0.40]
+    groups = ["A", "A", "B", "B"]
+    result = grouped_binomial_test(y_true, y_prob, groups)
+    first = result.bins[0]
+    second = result.bins[1]
+    assert first.group == "A"
+    assert first.n_observations == 2
+    assert first.observed_defaults == 1
+    assert first.expected_defaults == pytest.approx(0.30)
+    assert first.average_pd == pytest.approx(0.15)
+    assert second.group == "B"
+    assert second.n_observations == 2
+    assert second.observed_defaults == 1
+    assert second.expected_defaults == pytest.approx(0.70)
+    assert second.average_pd == pytest.approx(0.35)
+
+
+def test_grouped_binomial_accepts_numeric_groups():
+    result = grouped_binomial_test(
+        [0, 1, 0, 1],
+        [0.10, 0.20, 0.30, 0.40],
+        [1, 1, 2, 2],
+    )
+    assert tuple(bin_result.group for bin_result in result.bins) == (1, 2)
+
+
+def test_grouped_binomial_preserves_group_order():
+    result = grouped_binomial_test(
+        [0, 1, 0, 1],
+        [0.10, 0.20, 0.30, 0.40],
+        ["BBB", "BBB", "AAA", "AAA"],
+    )
+    assert tuple(bin_result.group for bin_result in result.bins) == ("BBB", "AAA")
+
+
+def test_grouped_binomial_dropna_filters_groups_consistently():
+    result = grouped_binomial_test(
+        [0, np.nan, 1, 0],
+        [0.10, 0.20, 0.30, np.nan],
+        ["A", "B", "C", "D"],
+        dropna=True,
+    )
+    assert tuple(bin_result.group for bin_result in result.bins) == ("A", "C")
+    assert sum(bin_result.n_observations for bin_result in result.bins) == 2
+
+
+def test_grouped_binomial_rejects_group_length_mismatch():
+    with pytest.raises(ValueError, match="y_true and groups must have the same length"):
+        grouped_binomial_test(
+            [0, 1, 0],
+            [0.10, 0.20, 0.30],
+            ["A", "B"],
+        )
+
+
+def test_grouped_binomial_rejects_missing_group_labels():
+    with pytest.raises(ValueError, match="groups contains missing values"):
+        grouped_binomial_test(
+            [0, 1, 0],
+            [0.10, 0.20, 0.30],
+            ["A", None, "B"],
+        )
