@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
@@ -12,46 +13,58 @@ def _validate_psi_parameters(
     missing: MissingPolicy = "raise",
     epsilon: float = 1e-6,
 ) -> None:
-    if not 0.0 < epsilon < 1.0:
-        raise ValueError("epsilon must be between 0 and 1")
-
+    """Validatie common PSI parameters."""
     if missing not in {"raise", "drop", "separate"}:
         raise ValueError("missing must be one of: raise, drop, separate")
 
+    if not 0.0 < epsilon < 1.0:
+        raise ValueError("epsilon must be between 0 and 1")
+
 
 def _smooth_proportions(proportions: np.ndarray, *, epsilon: float) -> np.ndarray:
-    """Apply an epsilon floor and renormalize."""
+    """Apply an epsilon floor and renormalize proportions."""
     smoothed = np.clip(proportions, epsilon, None)
     return smoothed / smoothed.sum()
 
 
+@dataclass(frozen=True)
+class _PSICalculation:
+    value: float
+    expected_proportions: np.ndarray
+    actual_proportions: np.ndarray
+    contributions: np.ndarray
+
+
 def _compute_psi_from_counts(
     expected_counts: np.ndarray, actual_counts: np.ndarray, *, epsilon: float = 1e-6
-):
-    if expected_counts.shape != actual_counts.shape:
-        raise ValueError("expected_counts and actual_counts must have the same shape")
-    if expected_counts.sum() <= 0 or actual_counts.sum() <= 0:
-        raise ValueError("expected and actual counts must have positive totals")
-
+) -> _PSICalculation:
+    """Compute PSI components from aligned bin counts."""
     expected_proportions = expected_counts / expected_counts.sum()
     actual_proportions = actual_counts / actual_counts.sum()
-    expected_proportions = _smooth_proportions(
+
+    expected_smoothed = _smooth_proportions(
         expected_proportions,
         epsilon=epsilon,
     )
-    actual_proportions = _smooth_proportions(
+    actual_smoothed = _smooth_proportions(
         actual_proportions,
         epsilon=epsilon,
     )
 
-    psi_values = (actual_proportions - expected_proportions) * np.log(
-        actual_proportions / expected_proportions
+    contributions = (actual_smoothed - expected_smoothed) * np.log(
+        actual_smoothed / expected_smoothed
     )
 
-    return float(np.sum(psi_values))
+    return _PSICalculation(
+        value=float(np.sum(contributions)),
+        expected_proportions=expected_proportions,
+        actual_proportions=actual_proportions,
+        contributions=contributions,
+    )
 
 
 def _missing_category_mask(values: np.ndarray) -> np.ndarray:
+    """Return a mask identifying missing categorical labels."""
     return np.fromiter(
         (
             value is None or (isinstance(value, (float, np.floating)) and np.isnan(value))
@@ -62,6 +75,23 @@ def _missing_category_mask(values: np.ndarray) -> np.ndarray:
     )
 
 
+@dataclass(frozen=True)
+class ContinuousPSIBinResult:
+    lower_bound: float | None
+    upper_bound: float | None
+    expected_count: int
+    actual_count: int
+    expected_proportion: float
+    actual_proportion: float
+    contribution: float
+
+
+@dataclass(frozen=True)
+class ContinuousPSIResult:
+    value: float
+    bins: tuple[ContinuousPSIBinResult, ...]
+
+
 def psi_continuous(
     expected: ArrayLike,
     actual: ArrayLike,
@@ -69,8 +99,8 @@ def psi_continuous(
     bins: int = 10,
     missing: MissingPolicy = "raise",
     epsilon: float = 1e-6,
-) -> float:
-    """Compute PSI for continuous values using expected-sample quantile bins."""
+) -> ContinuousPSIResult:
+    """Compute PSI for continuous values using reference-sample quantile bins."""
     _validate_psi_parameters(missing=missing, epsilon=epsilon)
 
     if bins < 2:
@@ -111,11 +141,54 @@ def psi_continuous(
     expected_counts, _ = np.histogram(expected_non_missing, bins=edges)
     actual_counts, _ = np.histogram(actual_non_missing, bins=edges)
 
-    if missing == "separate":
-        expected_counts = np.append(expected_counts, expected_missing.sum())
-        actual_counts = np.append(actual_counts, actual_missing.sum())
+    bins_definitions: list[tuple[float | None.float | None]] = [
+        (
+            float(lower),
+            float(upper),
+        )
+        for lower, upper in zip(edges[:-1], edges[1:], strict=True)
+    ]
 
-    return _compute_psi_from_counts(expected_counts, actual_counts, epsilon=epsilon)
+    if missing == "separate":
+        expected_counts = np.append(expected_counts, int(expected_missing.sum()))
+        actual_counts = np.append(actual_counts, int(actual_missing.sum()))
+        bins_definitions.append((None, None))
+
+    calculation = _compute_psi_from_counts(expected_counts, actual_counts, epsilon=epsilon)
+
+    bin_results: list[ContinuousPSIBinResult] = []
+    for index, (lower_bound, upper_bound) in enumerate(bins_definitions):
+        bin_results.append(
+            ContinuousPSIBinResult(
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                expected_count=int(expected_counts[index]),
+                actual_count=int(actual_counts[index]),
+                expected_proportion=float(calculation.expected_proportions[index]),
+                actual_proportion=float(calculation.actual_proportions[index]),
+                contribution=float(calculation.contributions[index]),
+            )
+        )
+    return ContinuousPSIResult(
+        value=calculation.value,
+        bins=tuple(bin_results),
+    )
+
+
+@dataclass(frozen=True)
+class CategoricalPSIBinResult:
+    category: int | float | str | bool | None
+    expected_count: int
+    actual_count: int
+    expected_proportion: float
+    actual_proportion: float
+    contribution: float
+
+
+@dataclass(frozen=True)
+class CategoricalPSIResult:
+    value: float
+    bins: tuple[CategoricalPSIBinResult, ...]
 
 
 def psi_categorical(
@@ -124,7 +197,7 @@ def psi_categorical(
     *,
     missing: MissingPolicy = "raise",
     epsilon: float = 1e-6,
-) -> float:
+) -> CategoricalPSIResult:
     """Compute PSI for categorical values."""
     _validate_psi_parameters(missing=missing, epsilon=epsilon)
 
@@ -153,7 +226,9 @@ def psi_categorical(
 
     categories = list(dict.fromkeys(expected_non_missing.tolist()))
     categories.extend(
-        value for value in dict.fromkeys(actual_non_missing.tolist()) if value not in categories
+        category
+        for category in dict.fromkeys(actual_non_missing.tolist())
+        if category not in categories
     )
     expected_counts = np.array(
         [np.sum(expected_non_missing == category) for category in categories], dtype=float
@@ -163,8 +238,28 @@ def psi_categorical(
         dtype=float,
     )
 
-    if missing == "separate":
-        expected_counts = np.append(expected_counts, expected_missing.sum())
-        actual_counts = np.append(actual_counts, actual_missing.sum())
+    result_categories: list[int | float | str | bool | None] = list(categories)
 
-    return _compute_psi_from_counts(expected_counts, actual_counts, epsilon=epsilon)
+    if missing == "separate":
+        expected_counts = np.append(expected_counts, int(expected_missing.sum()))
+        actual_counts = np.append(actual_counts, int(actual_missing.sum()))
+        result_categories.append(None)
+
+    calculation = _compute_psi_from_counts(expected_counts, actual_counts, epsilon=epsilon)
+
+    bin_results: list[CategoricalPSIBinResult] = []
+    for index, category in enumerate(result_categories):
+        bin_results.append(
+            CategoricalPSIBinResult(
+                category=category,
+                expected_count=int(expected_counts[index]),
+                actual_count=int(actual_counts[index]),
+                expected_proportion=float(calculation.expected_proportions[index]),
+                actual_proportion=float(calculation.actual_proportions[index]),
+                contribution=float(calculation.contributions[index]),
+            )
+        )
+    return CategoricalPSIResult(
+        value=calculation.value,
+        bins=tuple(bin_results),
+    )
