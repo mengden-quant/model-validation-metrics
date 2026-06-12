@@ -8,7 +8,7 @@ from valmetrics.utils import (
     ArrayLike,
     GroupLike,
     prepare_binary_inputs,
-    prepare_binary_inputs_and_groups,
+    prepare_grouped_binary_inputs,
     validate_probabilities,
 )
 
@@ -103,7 +103,7 @@ def grouped_hosmer_lemeshow(
     dropna: bool = False,
 ) -> HosmerLemeshowResult:
     """Compute the Hosmer-Lemeshow test using predefined groups."""
-    y, p, group_labels = prepare_binary_inputs_and_groups(
+    y, p, group_labels = prepare_grouped_binary_inputs(
         y_true,
         y_prob,
         groups,
@@ -249,7 +249,7 @@ def grouped_binomial_test(
     if not 0.0 < confidence_level < 1.0:
         raise ValueError("confidence_level must be between 0 and 1")
 
-    y, p, g = prepare_binary_inputs_and_groups(
+    y, p, g = prepare_grouped_binary_inputs(
         y_true, y_prob, groups, values_name="y_prob", groups_name="groups", dropna=dropna
     )
     validate_probabilities(p, name="y_prob")

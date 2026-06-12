@@ -3,7 +3,7 @@ from typing import Literal
 
 import numpy as np
 
-from valmetrics.utils import ArrayLike, GroupLike, as_1d_array, as_1d_float_array
+from valmetrics.utils import ArrayLike, GroupLike, as_1d_float_array, as_1d_group_array
 
 MissingPolicy = Literal["raise", "drop", "separate"]
 
@@ -201,8 +201,8 @@ def psi_categorical(
     """Compute PSI for categorical values."""
     _validate_psi_parameters(missing=missing, epsilon=epsilon)
 
-    expected_array = as_1d_array(expected, name="expected")
-    actual_array = as_1d_array(actual, name="actual")
+    expected_array = as_1d_group_array(expected, name="expected")
+    actual_array = as_1d_group_array(actual, name="actual")
 
     if expected_array.size == 0:
         raise ValueError("expected must contain at least one observation")
