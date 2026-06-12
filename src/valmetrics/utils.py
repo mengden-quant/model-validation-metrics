@@ -77,7 +77,7 @@ def validate_probabilities(values: np.ndarray, *, name: str = "y_prob") -> None:
         raise ValueError(f"{name} must be in [0, 1]")
 
 
-def _missing_group_mask(groups: np.ndarray) -> np.ndarray:
+def missing_group_mask(groups: np.ndarray) -> np.ndarray:
     """Return a mask for missing group labels."""
     return np.fromiter(
         (
@@ -168,7 +168,7 @@ def prepare_grouped_binary_inputs(
         right_name=groups_name,
     )
 
-    if np.any(_missing_group_mask(group_array)):
+    if np.any(missing_group_mask(group_array)):
         raise ValueError(f"{groups_name} contains missing values")
 
     return y, x, group_array[mask]
