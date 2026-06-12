@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from valmetrics.stability import psi_continuous
+from valmetrics.stability import psi_categorical, psi_continuous
 
 
 def test_psi_identical_distributions_is_zero():
@@ -82,3 +82,90 @@ def test_psi_rejects_constant_expected_values():
     actual = [0.05, 0.05, 0.06, 0.07]
     with pytest.raises(ValueError, match="at least two distinct values"):
         psi_continuous(expected, actual, bins=3)
+
+
+def test_psi_categorical_identical_distributions_is_zero():
+    expected = ["A", "A", "B", "C"]
+    actual = ["A", "A", "B", "C"]
+    assert psi_categorical(expected, actual) == pytest.approx(0.0)
+
+
+def test_psi_categorical_changed_distribution_is_positive():
+    expected = ["A", "A", "A", "B"]
+    actual = ["A", "B", "B", "B"]
+    assert psi_categorical(expected, actual) > 0.0
+
+
+def test_psi_categorical_handles_category_only_in_actual():
+    result = psi_categorical(
+        ["A", "A", "B", "B"],
+        ["A", "A", "B", "C"],
+    )
+    assert np.isfinite(result)
+    assert result > 0.0
+
+
+def test_psi_categorical_handles_category_only_in_expected():
+    result = psi_categorical(
+        ["A", "A", "B", "C"],
+        ["A", "A", "B", "B"],
+    )
+    assert np.isfinite(result)
+    assert result > 0.0
+
+
+def test_psi_categorical_accepts_numeric_categories():
+    result = psi_categorical(
+        [1, 1, 2, 2],
+        [1, 2, 2, 3],
+    )
+    assert np.isfinite(result)
+
+
+def test_psi_categorical_rejects_missing_by_default():
+    with pytest.raises(ValueError, match="contain missing values"):
+        psi_categorical(
+            ["A", None, "B"],
+            ["A", "B", "B"],
+        )
+
+
+def test_psi_categorical_can_drop_missing():
+    result = psi_categorical(
+        ["A", None, "B"],
+        ["A", "B", None],
+        missing="drop",
+    )
+    assert result == pytest.approx(0.0)
+
+
+def test_psi_categorical_treats_missing_as_separate_category():
+    result = psi_categorical(
+        ["A", None, None, "B"],
+        ["A", None, "B", "B"],
+        missing="separate",
+    )
+    assert np.isfinite(result)
+    assert result > 0.0
+
+
+def test_psi_categorical_rejects_empty_expected():
+    with pytest.raises(ValueError, match="expected must contain at least one observation"):
+        psi_categorical([], ["A"])
+
+
+def test_psi_categorical_rejects_empty_actual():
+    with pytest.raises(ValueError, match="actual must contain at least one observation"):
+        psi_categorical(["A"], [])
+
+
+def test_psi_categorical_rejects_all_missing_after_drop():
+    with pytest.raises(
+        ValueError,
+        match="expected must contain at least one non-missing observation",
+    ):
+        psi_categorical(
+            [None, np.nan],
+            ["A", "B"],
+            missing="drop",
+        )
