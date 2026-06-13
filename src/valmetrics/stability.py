@@ -3,7 +3,13 @@ from typing import Literal
 
 import numpy as np
 
-from valmetrics.utils import ArrayLike, GroupLike, as_1d_float_array, as_1d_group_array
+from valmetrics.utils import (
+    ArrayLike,
+    GroupLike,
+    as_1d_float_array,
+    as_1d_group_array,
+    missing_group_mask,
+)
 
 MissingPolicy = Literal["raise", "drop", "separate"]
 
@@ -13,7 +19,7 @@ def _validate_psi_parameters(
     missing: MissingPolicy = "raise",
     epsilon: float = 1e-6,
 ) -> None:
-    """Validatie common PSI parameters."""
+    """Validate common PSI parameters."""
     if missing not in {"raise", "drop", "separate"}:
         raise ValueError("missing must be one of: raise, drop, separate")
 
@@ -60,18 +66,6 @@ def _compute_psi_from_counts(
         expected_proportions=expected_proportions,
         actual_proportions=actual_proportions,
         contributions=contributions,
-    )
-
-
-def _missing_category_mask(values: np.ndarray) -> np.ndarray:
-    """Return a mask identifying missing categorical labels."""
-    return np.fromiter(
-        (
-            value is None or (isinstance(value, (float, np.floating)) and np.isnan(value))
-            for value in values
-        ),
-        dtype=bool,
-        count=values.size,
     )
 
 
@@ -141,7 +135,7 @@ def psi_continuous(
     expected_counts, _ = np.histogram(expected_non_missing, bins=edges)
     actual_counts, _ = np.histogram(actual_non_missing, bins=edges)
 
-    bins_definitions: list[tuple[float | None.float | None]] = [
+    bin_definitions: list[tuple[float | None, float | None]] = [
         (
             float(lower),
             float(upper),
@@ -152,12 +146,12 @@ def psi_continuous(
     if missing == "separate":
         expected_counts = np.append(expected_counts, int(expected_missing.sum()))
         actual_counts = np.append(actual_counts, int(actual_missing.sum()))
-        bins_definitions.append((None, None))
+        bin_definitions.append((None, None))
 
     calculation = _compute_psi_from_counts(expected_counts, actual_counts, epsilon=epsilon)
 
     bin_results: list[ContinuousPSIBinResult] = []
-    for index, (lower_bound, upper_bound) in enumerate(bins_definitions):
+    for index, (lower_bound, upper_bound) in enumerate(bin_definitions):
         bin_results.append(
             ContinuousPSIBinResult(
                 lower_bound=lower_bound,
@@ -209,8 +203,8 @@ def psi_categorical(
     if actual_array.size == 0:
         raise ValueError("actual must contain at least one observation")
 
-    expected_missing = _missing_category_mask(expected_array)
-    actual_missing = _missing_category_mask(actual_array)
+    expected_missing = missing_group_mask(expected_array)
+    actual_missing = missing_group_mask(actual_array)
 
     if missing == "raise" and (np.any(expected_missing) or np.any(actual_missing)):
         raise ValueError("expected and actual contain missing values")
@@ -231,11 +225,11 @@ def psi_categorical(
         if category not in categories
     )
     expected_counts = np.array(
-        [np.sum(expected_non_missing == category) for category in categories], dtype=float
+        [np.sum(expected_non_missing == category) for category in categories], dtype=int
     )
     actual_counts = np.array(
         [np.sum(actual_non_missing == category) for category in categories],
-        dtype=float,
+        dtype=int,
     )
 
     result_categories: list[int | float | str | bool | None] = list(categories)
