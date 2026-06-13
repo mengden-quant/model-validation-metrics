@@ -14,11 +14,32 @@ def _gini_from_auc(auc: float) -> float:
     return float(2.0 * auc - 1.0)
 
 
-def roc_auc(y_true: ArrayLike, y_score: ArrayLike, *, dropna: bool = False) -> float:
-    """Standard ROC AUC (ties treated neutrally as 0.5 in sklearn)."""
-    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+def __roc_auc_prepared(y: np.ndarray, s: np.ndarray) -> float:
+    """Compute ROC AUC for already prepared arrays."""
     check_contains_both_binary_classes(y)
     return float(roc_auc_score(y, s))
+
+
+def roc_auc(y_true: ArrayLike, y_score: ArrayLike, *, dropna: bool = False) -> float:
+    """Standard ROC AUC (ties are treated neutrally as 0.5 in sklearn)."""
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    return __roc_auc_prepared(y, s)
+
+
+def _conservative_tie_correction_prepared(y: np.ndarray, s: np.ndarray) -> float:
+    """Compute conservaive tie correction for already prepared arrays."""
+    check_contains_both_binary_classes(y)
+
+    n_pos, n_neg = binary_class_counts(y)
+
+    _, inv = np.unique(s, return_inverse=True)
+    pos_j = np.bincount(inv, weights=y.astype(float))
+    cnt_j = np.bincount(inv)
+    neg_j = cnt_j - pos_j
+
+    tie_pairs = np.sum(pos_j * neg_j)
+
+    return float(tie_pairs / (n_pos * n_neg))
 
 
 def conservative_tie_correction(
@@ -36,16 +57,8 @@ def conservative_tie_correction(
     Depends only on tie structure (permutation-invariant).
     """
     y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
-    check_contains_both_binary_classes(y)
-    n_pos, n_neg = binary_class_counts(y)
-    # group by identical scores
-    _, inv = np.unique(s, return_inverse=True)
-    pos_j = np.bincount(inv, weights=y.astype(float))
-    cnt_j = np.bincount(inv)
-    neg_j = cnt_j - pos_j
 
-    ties_pairs = np.sum(pos_j * neg_j)
-    return float(ties_pairs / (n_pos * n_neg))
+    return _conservative_tie_correction_prepared(y, s)
 
 
 def gini_standard(
@@ -57,7 +70,8 @@ def gini_standard(
     """
     Compute standard Gini coefficient as 2 * ROC AUC - 1.
     """
-    auc = roc_auc(y_true, y_score, dropna=dropna)
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    auc = __roc_auc_prepared(y, s)
     return _gini_from_auc(auc)
 
 
@@ -70,10 +84,10 @@ def gini_conservative(
     """
     Compute conservative Gini coefficient by penalizing mixed tie groups.
     """
-    return float(
-        gini_standard(y_true, y_score, dropna=dropna)
-        - conservative_tie_correction(y_true, y_score, dropna=dropna)
-    )
+    y, s = prepare_binary_inputs(y_true, y_score, values_name="y_score", dropna=dropna)
+    auc = __roc_auc_prepared(y, s)
+    tie_correction = _conservative_tie_correction_prepared(y, s)
+    return float(_gini_from_auc(auc) - tie_correction)
 
 
 def ks_statistic(
