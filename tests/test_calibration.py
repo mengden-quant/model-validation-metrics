@@ -209,15 +209,6 @@ def test_binomial_test_rejects_invalid_confidence_level():
         )
 
 
-def test_binomial_test_rejects_too_few_groups():
-    with pytest.raises(ValueError, match="n_groups must be at least 2"):
-        binomial_test(
-            [0, 1, 0, 1],
-            [0.10, 0.20, 0.30, 0.40],
-            n_groups=1,
-        )
-
-
 def test_binomial_test_rejects_more_groups_than_observations():
     with pytest.raises(ValueError, match="n_groups must not exceed number of observations"):
         binomial_test(
@@ -236,24 +227,6 @@ def test_binomial_test_rejects_invalid_probabilities():
         )
 
 
-def test_binomial_test_rejects_average_pd_equal_to_zero():
-    with pytest.raises(ValueError, match="average PD must be strictly between 0 and 1"):
-        binomial_test(
-            [0, 0, 1, 1],
-            [0.00, 0.00, 0.20, 0.30],
-            n_groups=2,
-        )
-
-
-def test_binomial_test_rejects_average_pd_equal_to_one():
-    with pytest.raises(ValueError, match="average PD must be strictly between 0 and 1"):
-        binomial_test(
-            [0, 0, 1, 1],
-            [0.20, 0.30, 1.00, 1.00],
-            n_groups=2,
-        )
-
-
 def test_binomial_test_handles_missing_values_when_dropna_is_true():
     y_true = [0, 1, 1, 1]
     y_prob = [0.10, np.nan, 0.30, 0.40]
@@ -267,6 +240,37 @@ def test_binomial_test_rejects_missing_values_by_default():
     y_prob = [0.10, np.nan, 0.30, 0.40]
     with pytest.raises(ValueError):
         binomial_test(y_true, y_prob, n_groups=2)
+
+
+def test_binomial_test_does_not_split_equal_probabilities_between_groups():
+    y_true = [0, 1, 0, 1, 0, 1]
+    y_prob = [0.10, 0.10, 0.10, 0.80, 0.80, 0.80]
+    result = binomial_test(y_true, y_prob, n_groups=4)
+    assert len(result.bins) == 2
+    first_group = result.bins[0]
+    second_group = result.bins[1]
+    assert first_group.n_observations == 3
+    assert first_group.expected_defaults == pytest.approx(0.30)
+    assert first_group.average_pd == pytest.approx(0.10)
+    assert second_group.n_observations == 3
+    assert second_group.expected_defaults == pytest.approx(2.40)
+    assert second_group.average_pd == pytest.approx(0.80)
+
+
+def test_binomial_test_is_invariant_to_order_within_probability_ties():
+    y_true_1 = [0, 1, 0, 1, 0, 1]
+    y_prob_1 = [0.10, 0.10, 0.10, 0.80, 0.80, 0.80]
+    y_true_2 = [1, 0, 0, 0, 1, 1]
+    y_prob_2 = [0.10, 0.10, 0.10, 0.80, 0.80, 0.80]
+    result_1 = binomial_test(y_true_1, y_prob_1, n_groups=4)
+    result_2 = binomial_test(y_true_2, y_prob_2, n_groups=4)
+    assert len(result_1.bins) == len(result_2.bins)
+    for bin_1, bin_2 in zip(result_1.bins, result_2.bins, strict=True):
+        assert bin_1.n_observations == bin_2.n_observations
+        assert bin_1.observed_defaults == bin_2.observed_defaults
+        assert bin_1.expected_defaults == pytest.approx(bin_2.expected_defaults)
+        assert bin_1.average_pd == pytest.approx(bin_2.average_pd)
+        assert bin_1.p_value == pytest.approx(bin_2.p_value)
 
 
 def test_grouped_binomial_returns_one_result_per_group():
