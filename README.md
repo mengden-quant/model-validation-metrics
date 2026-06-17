@@ -54,52 +54,75 @@ poetry install
 
 ## Quick Start
 
-### Discrimination
-
 ```python
-from valmetrics.discrimination import gini_conservative, gini_standard, ks_statistic
-y_true = [1, 1, 1, 0, 0, 0]
-y_score = [0.90, 0.80, 0.70, 0.30, 0.20, 0.10]
-gini = gini_standard(y_true, y_score)
-gini_cons = gini_conservative(y_true, y_score)
-ks = ks_statistic(y_true, y_score)
-```
-
-### Calibration
-
-```python
+from valmetrics.discrimination import gini_standard, roc_auc
 from valmetrics.calibration import hosmer_lemeshow
-result = hosmer_lemeshow(
-    y_true=[0, 0, 1, 1, 0, 1, 0, 1],
-    y_prob=[0.10, 0.20, 0.80, 0.70, 0.20, 0.90, 0.30, 0.60],
-    n_groups=4,
-)
-result.statistic
-result.p_value
-```
-
-### Stability
-
-```python
 from valmetrics.stability import psi_continuous
+from valmetrics.diagnostics import herfindahl_hirschman
+
+y_true = [0, 0, 1, 1, 0, 1]
+y_prob = [0.05, 0.10, 0.40, 0.60, 0.20, 0.80]
+
+auc = roc_auc(y_true, y_prob)
+
+gini = gini_standard(y_true, y_prob)
+
+hl = hosmer_lemeshow(y_true, y_prob, n_groups=3)
+
 psi = psi_continuous(
-    expected=[0.01, 0.02, 0.03, 0.04, 0.05],
-    actual=[0.03, 0.04, 0.05, 0.06, 0.07],
-    bins=3,
+    expected=[0.01, 0.02, 0.03, 0.04],
+    actual=[0.02, 0.03, 0.05, 0.06],
+    bins=2,
 )
+
+hhi = herfindahl_hirschman(["A", "A", "B", "C"], normalized=True)
 ```
 
-### Diagnostics
+## Documentation
 
-```python
-from valmetrics.diagnostics import hci, herfindahl_hirschman
-groups = ["A", "A", "B", "C", "C", "C"]
-hhi = herfindahl_hirschman(groups, normalized=True)
-largest_groups = hci(groups)
-```
+- [Methodology](docs/methodology.md)
+- [PD model validation example notebook](examples/pd_model_validation.ipynb)
+- [Synthetic data generator](examples/data_generator.py)
 
----
+## Example Workflow
 
-## Status
+The repository includes an end-to-end synthetic PD model validation notebook.
 
-Early development.
+The notebook demonstrates:
+- synthetic credit-risk data generation;
+- logistic regression model fitting;
+- development, validation, and out-of-time sample scoring;
+- rating grade construction;
+- discrimination analysis;
+- calibration testing;
+- population stability analysis;
+- concentration diagnostics;
+- final validation conclusions.
+
+## Methodological Notes
+
+The metrics are designed for validation workflows, not for automatic model approval.
+
+Important limitations:
+- binomial calibration tests use a group-level average-PD approximation;
+- PSI is sensitive to binning choices and sample size;
+- HHI and HCI are concentration diagnostics, not model performance metrics.
+
+See [docs/methodology.md](docs/methodology.md) for details.
+
+## Roadmap
+
+Potential future additions:
+- confidence intervals for discrimination metrics;
+- Poisson-binomial calibration test;
+- calibration plots and summary helpers;
+- migration matrix diagnostics;
+- LGD validation metrics;
+- EAD / CCF validation metrics;
+- additional model monitoring utilities.
+
+These items are not part of the current `0.1.0` scope.
+
+## License
+
+MIT License.
