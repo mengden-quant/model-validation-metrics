@@ -127,7 +127,7 @@ def _compute_hosmer_lemeshow(
 
     n_groups = len(unique_groups)
     degrees_of_freedom = n_groups - 2
-    p_value = 1.0 - chi2.cdf(statistic, degrees_of_freedom)
+    p_value = chi2.sf(statistic, degrees_of_freedom)
 
     return HosmerLemeshowResult(
         statistic=float(statistic),
@@ -248,10 +248,10 @@ def _compute_exact_binomial_bin_result(
 
     if alternative == "two-sided":
         lower_default_bound = int(binom.ppf(alpha / 2.0, n_observations, average_pd))
-        upper_default_bound = int(binom.ppf(1 - alpha / 2.0, n_observations, average_pd))
+        upper_default_bound = int(binom.isf(alpha / 2.0, n_observations, average_pd))
     elif alternative == "greater":
         lower_default_bound = 0
-        upper_default_bound = int(binom.ppf(1 - alpha, n_observations, average_pd))
+        upper_default_bound = int(binom.isf(alpha, n_observations, average_pd))
     else:  # "less"
         lower_default_bound = int(binom.ppf(alpha, n_observations, average_pd))
         upper_default_bound = n_observations
@@ -336,7 +336,7 @@ def binomial_test(
 def grouped_binomial_test(
     y_true: ArrayLike,
     y_prob: ArrayLike,
-    groups: ArrayLike,
+    groups: GroupLike,
     *,
     confidence_level: float = 0.95,
     alternative: Alternative = "two-sided",
