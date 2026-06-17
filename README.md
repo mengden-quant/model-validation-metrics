@@ -4,19 +4,49 @@
 
 Production-style Python toolkit for model validation metrics used in credit risk and model risk management.
 
+## Status
+
+Current version: `0.1.0`
+
+This is an early-stage project. The API is usable for examples and validation prototypes, but may change before version `1.0.0`.
+
 ## Current Scope
 
-Current modules:
-- `discrimination`: ROC AUC, standard Gini, conservative Gini, KS statistic
-- `calibration`: Hosmer-Lemeshow calibration test
-- `stability`: Population Stability Index
-- `diagnostics`: Herfindahl-Hirschman Index, highest concentration index
+### Discrimination
+
+- AUC-ROC
+- Standard Gini
+- Conservative Gini
+- Conservative tie correction
+- Kolmogorov-Smirnov statistic
+
+### Calibration
+
+- Hosmer-Lemeshow calibration test
+- Grouped Hosmer-Lemeshow calibration test
+- Binomial calibration test
+- Grouped binomial calibration test
+
+### Stability
+
+- Continuous Population Stability Index
+- Categorical Population Stability Index
+
+### Diagnostics
+
+- Herfindahl-Hirschman Index
+- Adjusted Herfindahl-Hirschman Index
+- Highest Concentration Index
 
 ---
 
 ## Installation
 
+Clone the repository and install dependencies with Poetry:
+
 ```bash
+git clone https://github.com/mengden-quant/model-validation-metrics.git
+cd model-validation-metrics
 poetry install
 ```
 
