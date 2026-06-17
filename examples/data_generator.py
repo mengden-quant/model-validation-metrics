@@ -256,7 +256,7 @@ def generate_pd_validation_data(
 
     return (
         pd.concat(frames, ignore_index=True)
-        .sort_values(["observation_date", "customer_id"])
+        .sort_values(["observation_date", "observation_id"])
         .reset_index(drop=True)
     )
 
